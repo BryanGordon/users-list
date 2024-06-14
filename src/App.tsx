@@ -1,20 +1,22 @@
 import './App.css'
-import { useEffect, useRef, useState } from 'react'
-import { type User } from './types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { SortBy, type User } from './types.d'
 import { UsersList } from './components/UsersList'
 
 function App () {
   const originalUsers = useRef<User[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [showColors, setShowColors] = useState(false)
-  const [countrySort, setCountrySort] = useState(false)
+  const [sorting, setSorting] = useState<SortBy>(SortBy.NONE)
+  const [filterCountry, setFilterCountry] = useState<string | null>(null)
 
   const toggleColors = () => {
     setShowColors(!showColors)
   }
 
   const toggleSortCountry = () => {
-    setCountrySort(!countrySort)
+    const sortCountry = sorting === SortBy.NONE ? SortBy.COUNTRY : SortBy.NONE
+    setSorting(sortCountry)
   }
 
   const handleReset = () => {
@@ -26,11 +28,33 @@ function App () {
     setUsers(filteredUsers)
   }
 
-  const sortedUsers = countrySort
-    ? users.toSorted((a, b) => {
-      return a.location.country.localeCompare(b.location.country)
-    })
-    : users
+  const handleChangeSort = (sort: SortBy) => {
+    setSorting(sort)
+  }
+
+  const filteredCountry = useMemo(() => {
+    return typeof filterCountry === 'string' && filterCountry.length > 0
+      ? users.filter((user) => {
+        return user.location.country.toLowerCase().includes(filterCountry.toLowerCase())
+      })
+      : users
+  }, [users, filterCountry])
+
+  const sortedUsers = useMemo(() => {
+    let compareFn = (a: User, b: User) => a.location.country.localeCompare(b.location.country)
+
+    if (sorting === SortBy.NONE) return filteredCountry
+
+    if (sorting === SortBy.NAME) {
+      compareFn = (a: User, b: User) => a.name.first.localeCompare(b.name.first)
+    }
+
+    if (sorting === SortBy.LAST) {
+      compareFn = (a: User, b: User) => a.name.last.localeCompare(b.name.last)
+    }
+
+    return filteredCountry.toSorted(compareFn)
+  }, [filteredCountry, sorting])
 
   useEffect(() => {
     fetch('https://randomuser.me/api?results=100')
@@ -48,15 +72,24 @@ function App () {
     <div>
       <h1>Lista de usuarios</h1>
       <header>
+
         <button onClick={toggleColors}>Colorear filas</button>
         <button onClick={toggleSortCountry}>
-          {countrySort ? 'No ordenar por país' : 'Ordenar por país'}
+          {sorting === SortBy.COUNTRY ? 'No ordenar por país' : 'Ordenar por país'}
         </button>
         <button onClick={handleReset}>Resetear usuarios</button>
+        <input
+          type='text'
+          placeholder='Filtrar por país'
+          onChange={(e) => {
+            setFilterCountry(e.target.value)
+          }}
+        />
+
       </header>
 
       <main>
-        <UsersList users={sortedUsers} showColors={showColors} deleteUser={handleDelete} />
+        <UsersList changeSorting={handleChangeSort} users={sortedUsers} showColors={showColors} deleteUser={handleDelete} />
       </main>
     </div>
   )
