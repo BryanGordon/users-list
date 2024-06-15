@@ -9,6 +9,18 @@ function App () {
   const [showColors, setShowColors] = useState(false)
   const [sorting, setSorting] = useState<SortBy>(SortBy.NONE)
   const [filterCountry, setFilterCountry] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const fetchUsers = async (page: number) => {
+    return await fetch(`https://randomuser.me/api?results=10&seed=bryange&page=${page}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Error en la petición')
+        return res.json()
+      })
+      .then(res => res.results)
+  }
 
   const toggleColors = () => {
     setShowColors(!showColors)
@@ -57,16 +69,25 @@ function App () {
   }, [filteredCountry, sorting])
 
   useEffect(() => {
-    fetch('https://randomuser.me/api?results=100')
-      .then(res => res.json())
-      .then(res => {
-        setUsers(res.results)
-        originalUsers.current = res.results
+    setLoading(true)
+    setError(false)
+
+    fetchUsers(currentPage)
+      .then(users => {
+        setUsers(prevUsers => {
+          const newUsers = prevUsers.concat(users)
+          originalUsers.current = newUsers
+          return newUsers
+        })
       })
       .catch(err => {
-        console.log(err)
+        setError(err)
+        console.error(err)
       })
-  }, [])
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [currentPage])
 
   return (
     <div>
@@ -89,7 +110,16 @@ function App () {
       </header>
 
       <main>
-        <UsersList changeSorting={handleChangeSort} users={sortedUsers} showColors={showColors} deleteUser={handleDelete} />
+        {users.length > 0 &&
+          <UsersList changeSorting={handleChangeSort} users={sortedUsers} showColors={showColors} deleteUser={handleDelete} />}
+
+        {loading && <p>Cargando...</p>}
+
+        {error && <p>Ha habido un error :(</p>}
+
+        {!error && users.length === 0 && <p>No hay usuarios</p>}
+
+        {!loading && !error && <button onClick={() => setCurrentPage(currentPage + 1)}>Cargar más resultados</button>}
       </main>
     </div>
   )
